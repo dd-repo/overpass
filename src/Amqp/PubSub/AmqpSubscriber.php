@@ -27,6 +27,11 @@ class AmqpSubscriber implements SubscriberInterface
         $this->serialization = $serialization ?: new JsonSerialization();
     }
 
+    public function __destruct()
+    {
+        $this->stop();
+    }
+
     /**
      * Subscribe to the given topic.
      *
@@ -109,25 +114,11 @@ class AmqpSubscriber implements SubscriberInterface
         }
     }
 
-    /**
-     * Consume messages from subscriptions.
-     *
-     * When a message is received the callback is invoked with two parameters,
-     * the first is the topic to which the message was published, the second is
-     * the message payload.
-     *
-     * The callback must return true in order to keep consuming messages, or
-     * false to end consumption.
-     *
-     * @param callable $callback The callback to invoke when a message is received.
-     */
-    public function consume(callable $callback)
+    public function start()
     {
-        if (!$this->subscriptions) {
+        if ($this->consumerTag) {
             return;
         }
-
-        $this->consumerCallback = $callback;
 
         $this->consumerTag = $this
             ->channel
@@ -142,10 +133,50 @@ class AmqpSubscriber implements SubscriberInterface
                     $this->dispatch($message);
                 }
             );
+    }
 
-        while ($this->channel->callbacks) {
-            $this->channel->wait();
+    public function stop()
+    {
+        if (!$this->consumerTag) {
+            return;
         }
+
+        $this
+            ->channel
+            ->basic_cancel(
+                $this->consumerTag
+            );
+
+        $this->consumerTag = null;
+    }
+
+    /**
+     * Consume messages from subscriptions.
+     *
+     * @param integer|null $timeout
+     *
+     * @return tuple<string, mixed>|null
+     */
+    public function wait($timeout = null)
+    {
+        $this->start();
+
+        $this->message = [null, null];
+
+        if ($this->subscriptions) {
+            $this
+                ->channel
+                ->wait(
+                    null,  // method type
+                    false, // non-blocking
+                    $timeout
+                );
+        }
+
+        $message = $this->message;
+        $this->message = [null, null];
+
+        return $message;
     }
 
     /**
@@ -189,31 +220,16 @@ class AmqpSubscriber implements SubscriberInterface
             );
         }
 
-        $callback = $this->consumerCallback;
-
-        $keepConsuming = $callback(
+        $this->message = [
             $topic,
             $payload
-        );
-
-        if ($keepConsuming) {
-            return;
-        }
-
-        $this
-            ->channel
-            ->basic_cancel(
-                $this->consumerTag
-            );
-
-        $this->consumerCallback = null;
-        $this->consumerTag = null;
+        ];
     }
 
     private $channel;
     private $declarationManager;
     private $serialization;
     private $subscriptions;
-    private $consumerCallback;
     private $consumerTag;
+    private $message;
 }

@@ -38,7 +38,7 @@ class AmqpSubscriberTest extends PHPUnit_Framework_TestCase
             );
 
         Phake::when($this->channel)
-            ->wait()
+            ->wait(Phake::anyParameters())
             ->thenReturn(null)
             ->thenGetReturnByLambda(
                 function () {
@@ -224,7 +224,7 @@ class AmqpSubscriberTest extends PHPUnit_Framework_TestCase
             $calls
         );
 
-        Phake::verify($this->channel, Phake::times(2))->wait();
+        Phake::verify($this->channel, Phake::times(2))->wait(null, false);
         Phake::verify($this->channel, Phake::never())->basic_cancel(Phake::anyParameters());
     }
 
@@ -249,7 +249,7 @@ class AmqpSubscriberTest extends PHPUnit_Framework_TestCase
             Phake::capture($handler)
         );
 
-        Phake::verify($this->channel, Phake::times(2))->wait();
+        Phake::verify($this->channel, Phake::times(2))->wait(null, false);
 
         $this->assertTrue(
             is_callable($handler)

@@ -33,10 +33,14 @@ $subscriber->subscribe($topic);
 /**
  * Consume messages forever!
  */
-$subscriber->consume(
-    function ($topic, $payload) use ($sleep) {
-        usleep($sleep * 1000000);
+while (true) {
+    list($topic, $payload) = $subscriber->wait();
+    usleep($sleep * 1000000);
+}
+// $subscriber->consume(
+//     function ($topic, $payload) use ($sleep) {
+//         usleep($sleep * 1000000);
 
-        return true; // Instructs the subscriber to continue consuming.
-    }
-);
+//         return true; // Instructs the subscriber to continue consuming.
+//     }
+// );

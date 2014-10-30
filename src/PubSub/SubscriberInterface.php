@@ -20,16 +20,21 @@ interface SubscriberInterface extends LoggerAwareInterface
     public function unsubscribe($topic);
 
     /**
+     * Start consuming messages.
+     */
+    public function start();
+
+    /**
+     * Stop consuming messages.
+     */
+    public function stop();
+
+    /**
      * Consume messages from subscriptions.
      *
-     * When a message is received the callback is invoked with two parameters,
-     * the first is the topic to which the message was published, the second is
-     * the message payload.
+     * @param integer|null $timeout
      *
-     * The callback must return true in order to keep consuming messages, or
-     * false to end consumption.
-     *
-     * @param callable $callback The callback to invoke when a message is received.
+     * @return tuple<string|null, mixed>
      */
-    public function consume(callable $callback);
+    public function wait($timeout = null);
 }
