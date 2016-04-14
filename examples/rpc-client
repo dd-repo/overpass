@@ -35,12 +35,16 @@ while (true) {
     $expected = $value * 2;
 
     try {
-
+        $time = \microtime(true);
         $result = $client->double($value);
-        assert($expected === $result);
+        echo (int)((\microtime(true) - $time) * 1000) . 'ms' . PHP_EOL;
+        // assert($expected === $result);
         usleep($sleep * 1000000);
 
     } catch (Icecave\Overpass\Rpc\Exception\TimeoutException $e) {
         // ignore timeout exceptions (they will be logged anyway)
+        echo "!!!";
     }
 }
+
+echo "WTF?";

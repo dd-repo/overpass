@@ -20,6 +20,7 @@ class GzipEncoding implements EncodingInterface
      */
     public function encode($scheme, $buffer)
     {
+        // $this->isEnabled = false;
         if ($this->isEnabled === null) {
             $this->isEnabled = $this->isolator()->extension_loaded('zlib');
         }
@@ -29,7 +30,10 @@ class GzipEncoding implements EncodingInterface
         }
 
         if ($this->isEnabled && $scheme === 'gzip') {
-            return [gzcompress($buffer), 'gzip'];
+            $time = microtime(true);
+            $buffer = gzcompress($buffer);
+            echo 'compress: ' . (int) ((microtime(true) - $time) * 1000) . 'ms' . PHP_EOL;
+            return [$buffer, 'gzip'];
         }
 
         return [$buffer, null];

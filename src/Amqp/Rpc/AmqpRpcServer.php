@@ -188,6 +188,8 @@ class AmqpRpcServer implements RpcServerInterface
             }
         }
 
+        echo 'size: ' . number_format(strlen($payload)) . PHP_EOL;
+
         // Send the response ...
         $this
             ->channel
@@ -276,7 +278,7 @@ class AmqpRpcServer implements RpcServerInterface
         $this->send($message, $response, $outputEncoding);
 
         $logContext['code']  = $response->code();
-        $logContext['value'] = json_encode($response->value());
+        // $logContext['value'] = json_encode($response->value());
         $logContext['encoding-in'] = $inputEncoding ?: 'raw';
         $logContext['encoding-out'] = $outputEncoding ?: 'raw';
 

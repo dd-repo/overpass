@@ -5,6 +5,15 @@
  */
 require __DIR__ . '/common.php';
 
+$data = file_get_contents('/Users/james/Downloads/data.json');
+$data = json_decode($data);
+
+//
+// foreach ($data as $index => $x) {
+//     if ($index % 2) unset($data[$index]);
+// }
+// echo count($data) . PHP_EOL;
+
 /**
  * Create an Overpass RPC server that exposes a single procedure named 'double'
  * which takes a single number as input and doubles it.
@@ -16,8 +25,8 @@ $server = new Icecave\Overpass\Amqp\Rpc\AmqpRpcServer(
 
 $server->expose(
     'double',
-    function ($value) {
-        return $value * 2;
+    function ($value) use ($data) {
+        return $data;
     }
 );
 

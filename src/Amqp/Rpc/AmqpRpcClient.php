@@ -84,7 +84,7 @@ class AmqpRpcClient implements RpcClientInterface
                 [
                     'id'      => $this->correlationId,
                     'queue'   => $responseQueue,
-                    'request' => $request,
+                    // 'request' => $request,
                 ]
             );
         }
@@ -114,7 +114,7 @@ class AmqpRpcClient implements RpcClientInterface
                 [
                     'id'       => $this->correlationId,
                     'queue'    => $responseQueue,
-                    'response' => $response,
+                    // 'response' => $response,
                 ]
             );
         }
