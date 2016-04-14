@@ -35,6 +35,7 @@
         "icecave/archer": "dev-develop",
         "icecave/stump": "^0.3",
         "phake/phake": "^1",
+        "phpunit/phpunit": "^5.3",
         "sami/sami": "^3"
     },
     "autoload": {

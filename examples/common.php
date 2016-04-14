@@ -14,11 +14,11 @@ $logger = new Icecave\Stump\Logger();
  * Connect to the AMQP server.
  */
 $amqpConnection = new PhpAmqpLib\Connection\AMQPStreamConnection(
-    'localhost',
-    5672,
-    'guest',
-    'guest',
-    '/'
+    getenv('OVERPASS_HOST') ?: 'localhost',
+    getenv('OVERPASS_PORT') ?: 5672,
+    getenv('OVERPASS_USER') ?: 'guest',
+    getenv('OVERPASS_PASS') ?: 'guest',
+    getenv('OVERPASS_VHOST') ?: '/'
 );
 
 /**

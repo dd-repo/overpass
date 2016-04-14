@@ -8,6 +8,8 @@ use Icecave\Overpass\Rpc\Message\MessageSerializationInterface;
 use Icecave\Overpass\Rpc\Message\Request;
 use Icecave\Overpass\Rpc\Message\Response;
 use Icecave\Overpass\Rpc\RpcClientInterface;
+use Icecave\Overpass\Serialization\GzipEncoding;
+use Icecave\Overpass\Serialization\EncodingInterface;
 use Icecave\Overpass\Serialization\JsonSerialization;
 use InvalidArgumentException;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -31,11 +33,13 @@ class AmqpRpcClient implements RpcClientInterface
         AMQPChannel $channel,
         $timeout = 10,
         DeclarationManager $declarationManager = null,
-        MessageSerializationInterface $serialization = null
+        MessageSerializationInterface $serialization = null,
+        EncodingInterface $encoding = null
     ) {
         $this->channel            = $channel;
         $this->declarationManager = $declarationManager ?: new DeclarationManager($channel);
         $this->serialization      = $serialization ?: new MessageSerialization(new JsonSerialization);
+        $this->encoding           = $encoding ?: new GzipEncoding();
         $this->correlationId      = 0;
 
         $this->setTimeout($timeout);
@@ -206,15 +210,26 @@ class AmqpRpcClient implements RpcClientInterface
             ->declarationManager
             ->responseQueue();
 
+        $properties = [
+            'reply_to'       => $responseQueue,
+            'correlation_id' => $this->correlationId,
+            'expiration'     => strval(
+                intval($this->timeout * 1000)
+            ),
+        ];
+
+        // Encode the payload with the default encoding ...
+        list($payload, $encoding) = $this
+            ->encoding
+            ->encode(null, $payload);
+
+        if ($encoding !== null) {
+            $properties['content_encoding'] = $encoding;
+        }
+
         $message = new AMQPMessage(
             $payload,
-            [
-                'reply_to'       => $responseQueue,
-                'correlation_id' => $this->correlationId,
-                'expiration'     => strval(
-                    intval($this->timeout * 1000)
-                ),
-            ]
+            $properties
         );
 
         $this
@@ -243,9 +258,16 @@ class AmqpRpcClient implements RpcClientInterface
             );
         }
 
+        if ($message->has('content_encoding')) {
+            $encoding = $message->get('content_encoding');
+            $body = $this->encoding->decode($encoding, $message->body);
+        } else {
+            $body = $message->body;
+        }
+
         $this->response = $this
             ->serialization
-            ->unserializeResponse($message->body);
+            ->unserializeResponse($body);
     }
 
     /**
@@ -289,6 +311,7 @@ class AmqpRpcClient implements RpcClientInterface
     private $channel;
     private $declarationManager;
     private $serialization;
+    private $encoding;
     private $timeout;
     private $correlationId;
     private $consumerTag;

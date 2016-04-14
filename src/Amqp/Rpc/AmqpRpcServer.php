@@ -13,6 +13,8 @@ use Icecave\Overpass\Rpc\Message\Request;
 use Icecave\Overpass\Rpc\Message\Response;
 use Icecave\Overpass\Rpc\Message\ResponseCode;
 use Icecave\Overpass\Rpc\RpcServerInterface;
+use Icecave\Overpass\Serialization\GzipEncoding;
+use Icecave\Overpass\Serialization\EncodingInterface;
 use Icecave\Overpass\Serialization\JsonSerialization;
 use LogicException;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -40,12 +42,14 @@ class AmqpRpcServer implements RpcServerInterface
         AMQPChannel $channel,
         DeclarationManager $declarationManager = null,
         MessageSerializationInterface $serialization = null,
+        EncodingInterface $encoding = null,
         InvokerInterface $invoker = null,
         ChannelDispatcher $channelDispatcher = null
     ) {
         $this->channel            = $channel;
         $this->declarationManager = $declarationManager ?: new DeclarationManager($channel);
         $this->serialization      = $serialization ?: new MessageSerialization(new JsonSerialization);
+        $this->encoding           = $encoding ?: new GzipEncoding();
         $this->invoker            = $invoker ?: new Invoker;
         $this->channelDispatcher  = $channelDispatcher ?: new ChannelDispatcher;
         $this->procedures         = [];
@@ -154,8 +158,9 @@ class AmqpRpcServer implements RpcServerInterface
      *
      * @param AMQPMessage $message
      * @param mixed       $payload
+     * @param string|null $encoding The content encoding, if specified.
      */
-    private function send(AMQPMessage $message, Response $response)
+    private function send(AMQPMessage $message, Response $response, $encoding)
     {
         // The client did not supply a reply queue, and is therefore
         // uninterested in the result ...
@@ -172,6 +177,15 @@ class AmqpRpcServer implements RpcServerInterface
         $properties = [];
         if ($message->has('correlation_id')) {
             $properties['correlation_id'] = $message->get('correlation_id');
+        }
+
+        // Encode the message in the same encoding as the request message ...
+        if ($encoding !== null) {
+            list($payload, $encoding) = $this->encoding->encode($encoding, $payload);
+
+            if ($encoding !== null) {
+                $properties['content_encoding'] = $encoding;
+            }
         }
 
         // Send the response ...
@@ -193,10 +207,12 @@ class AmqpRpcServer implements RpcServerInterface
     {
         $logLevel   = LogLevel::DEBUG;
         $logContext = [
-            'id'        => '?',
-            'queue'     => '-',
-            'procedure' => '<unknown>',
-            'arguments' => '<unknown>',
+            'id'           => '?',
+            'queue'        => '-',
+            'encoding-in'  => '?',
+            'encoding-out' => '?',
+            'procedure'    => '<unknown>',
+            'arguments'    => '<unknown>',
         ];
 
         if ($message->has('correlation_id')) {
@@ -216,9 +232,19 @@ class AmqpRpcServer implements RpcServerInterface
         );
 
         try {
+            if ($message->has('content_encoding')) {
+                $inputEncoding = $message->get('content_encoding');
+                $outputEncoding = $inputEncoding;
+                $body = $this->encoding->decode($inputEncoding, $message->body);
+            } else {
+                $inputEncoding = null;
+                $outputEncoding = null;
+                $body = $message->body;
+            }
+
             $request = $this
                 ->serialization
-                ->unserializeRequest($message->body);
+                ->unserializeRequest($body);
 
             $logContext['procedure'] = $request->name();
             $logContext['arguments'] = implode(
@@ -242,17 +268,22 @@ class AmqpRpcServer implements RpcServerInterface
                 ResponseCode::EXCEPTION(),
                 'Internal server error.'
             );
+            // Use raw encoding on the response, in case this is a decoding
+            // failure ...
+            $outputEncoding = null;
         }
 
-        $this->send($message, $response);
+        $this->send($message, $response, $outputEncoding);
 
         $logContext['code']  = $response->code();
         $logContext['value'] = json_encode($response->value());
+        $logContext['encoding-in'] = $inputEncoding ?: 'raw';
+        $logContext['encoding-out'] = $outputEncoding ?: 'raw';
 
         if (ResponseCode::SUCCESS() === $response->code()) {
-            $logMessage = 'rpc.server {queue} #{id} {procedure}({arguments}) -> {value}';
+            $logMessage = 'rpc.server {queue} #{id} [{encoding-in}:{encoding-out}] {procedure}({arguments}) -> {value}';
         } else {
-            $logMessage = 'rpc.server {queue} #{id} {procedure}({arguments}) -> {code} {value}';
+            $logMessage = 'rpc.server {queue} #{id} [{encoding-in}:{encoding-out}] {procedure}({arguments}) -> {code} {value}';
         }
 
         $this->logger->log($logLevel, $logMessage, $logContext);
@@ -293,6 +324,7 @@ class AmqpRpcServer implements RpcServerInterface
     private $channel;
     private $declarationManager;
     private $serialization;
+    private $encoding;
     private $invoker;
     private $channelDispatcher;
     private $isStopping;
